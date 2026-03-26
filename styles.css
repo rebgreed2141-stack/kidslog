@@ -1,0 +1,102 @@
+* { box-sizing: border-box; }
+body {
+  margin: 16px;
+  font-family: "Yu Gothic", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+  color: #222;
+  background: #ffffff;
+}
+button, select, input { font: inherit; }
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.tabs-left { display: flex; gap: 10px; }
+.app-version { margin-left: auto; font-size: 12px; color: #666; }
+.tab-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 48px; padding: 0 22px; border: 1px solid #b8c2cc; border-radius: 10px;
+  background: #f3f5f7; font-size: 20px; cursor: pointer;
+}
+.tab-btn.active { background: #dfe9f3; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+.header-card, .control-card, .legend-card, .child-row, .admin-wrap {
+  border: 1px solid #d6dde5; border-radius: 14px; background: #fbfdff;
+}
+.header-card { padding: 16px 18px; margin-bottom: 14px; }
+.app-title { margin: 0 0 4px; font-size: 28px; }
+.today-label { font-size: 22px; font-weight: 700; }
+.control-card {
+  display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-end;
+  padding: 16px 18px; margin-bottom: 12px;
+}
+.control-group { display: flex; flex-direction: column; gap: 8px; }
+.control-label { font-size: 16px; font-weight: 700; }
+.class-select {
+  min-width: 180px; height: 48px; padding: 0 12px; border: 1px solid #b8c2cc;
+  border-radius: 10px; background: #fff; font-size: 20px;
+}
+.radio-group { display: flex; gap: 18px; align-items: center; }
+.radio-item { display: inline-flex; align-items: center; gap: 8px; font-size: 22px; font-weight: 700; }
+.legend-card {
+  display: flex; flex-wrap: wrap; gap: 18px; padding: 12px 16px; margin-bottom: 12px;
+  font-size: 16px; font-weight: 700;
+}
+.children-list { display: flex; flex-direction: column; gap: 10px; }
+.child-row {
+  display: grid; grid-template-columns: 42px 56px 1fr; gap: 10px; align-items: center;
+  padding: 12px 14px;
+}
+.child-status {
+  font-size: 28px; font-weight: 700; text-align: center; min-height: 1em;
+}
+.child-no { font-size: 20px; font-weight: 700; text-align: center; }
+.child-btn {
+  height: 62px; border: 1px solid #b8c2cc; border-radius: 12px; background: #ffffff;
+  text-align: left; padding: 0 18px; font-size: 24px; font-weight: 700; cursor: pointer;
+}
+.child-btn:hover:enabled { background: #f7fbff; }
+.child-btn:disabled { opacity: 0.45; cursor: default; }
+.admin-wrap { display: inline-flex; flex-direction: column; gap: 12px; padding: 16px; }
+.admin-btn {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 52px; min-width: 220px;
+  padding: 0 20px; border: 1px solid #b8c2cc; border-radius: 10px; background: #f3f5f7;
+  font-size: 20px; cursor: pointer;
+}
+.danger-btn { background: #ffe3e3; }
+.overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+  display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 1000;
+}
+.overlay.hidden { display: none; }
+.parent-card, .dialog-card {
+  width: min(92vw, 560px); background: #fff; border-radius: 18px; padding: 28px 24px;
+  box-shadow: 0 14px 34px rgba(0,0,0,0.18); text-align: center;
+}
+.parent-title { font-size: 24px; font-weight: 700; margin-bottom: 12px; }
+.parent-class { font-size: 20px; color: #555; margin-bottom: 12px; }
+.parent-name { font-size: 42px; font-weight: 700; margin: 22px 0 28px; line-height: 1.35; }
+.parent-action-btn {
+  width: 100%; min-height: 94px; border: none; border-radius: 18px; font-size: 40px; font-weight: 700;
+  cursor: pointer; margin-bottom: 14px;
+}
+.parent-action-btn.mode-in { background: #cfeecd; }
+.parent-action-btn.mode-out { background: #f6caca; }
+.parent-cancel-btn, .dialog-ok-btn {
+  min-width: 160px; min-height: 56px; border: 1px solid #b8c2cc; border-radius: 12px;
+  background: #f3f5f7; font-size: 24px; cursor: pointer;
+}
+.dialog-child-name { font-size: 34px; font-weight: 700; line-height: 1.4; margin-bottom: 14px; }
+.dialog-time { font-size: 30px; font-weight: 700; margin-bottom: 16px; }
+.dialog-message { font-size: 24px; line-height: 1.6; white-space: pre-line; margin-bottom: 22px; }
+@media (max-width: 640px) {
+  body { margin: 10px; }
+  .app-title { font-size: 24px; }
+  .today-label { font-size: 18px; }
+  .child-row { grid-template-columns: 36px 44px 1fr; padding: 10px; }
+  .child-btn { font-size: 20px; height: 56px; }
+  .parent-name { font-size: 34px; }
+  .parent-action-btn { font-size: 34px; min-height: 82px; }
+}
