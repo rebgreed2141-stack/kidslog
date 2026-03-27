@@ -46,7 +46,7 @@ button, select, input { font: inherit; }
 }
 .children-list { display: flex; flex-direction: column; gap: 10px; }
 .child-row {
-  display: grid; grid-template-columns: 42px 56px 1fr; gap: 10px; align-items: center;
+  display: grid; grid-template-columns: 42px 56px 1fr auto; gap: 10px; align-items: center;
   padding: 12px 14px;
 }
 .child-status {
@@ -59,6 +59,12 @@ button, select, input { font: inherit; }
 }
 .child-btn:hover:enabled { background: #f7fbff; }
 .child-btn:disabled { opacity: 0.45; cursor: default; }
+.child-clear-btn {
+  min-width: 88px; height: 48px; border: 1px solid #e0b2b2; border-radius: 10px; background: #fff2f2;
+  color: #8b3131; font-size: 18px; font-weight: 700; cursor: pointer;
+}
+.child-clear-btn:hover { background: #ffe7e7; }
+.child-clear-spacer { width: 88px; height: 48px; }
 .admin-wrap { display: inline-flex; flex-direction: column; gap: 12px; padding: 16px; }
 .admin-btn {
   display: inline-flex; align-items: center; justify-content: center; min-height: 52px; min-width: 220px;
@@ -95,8 +101,10 @@ button, select, input { font: inherit; }
   body { margin: 10px; }
   .app-title { font-size: 24px; }
   .today-label { font-size: 18px; }
-  .child-row { grid-template-columns: 36px 44px 1fr; padding: 10px; }
+  .child-row { grid-template-columns: 36px 44px 1fr auto; padding: 10px; }
   .child-btn { font-size: 20px; height: 56px; }
+  .child-clear-btn { min-width: 72px; height: 42px; font-size: 16px; }
+  .child-clear-spacer { width: 72px; height: 42px; }
   .parent-name { font-size: 34px; }
   .parent-action-btn { font-size: 34px; min-height: 82px; }
 }
