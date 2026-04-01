@@ -61,6 +61,7 @@ function setupEventHandlers() {
   document.querySelectorAll('input[name="mode"]').forEach((radio) => {
     radio.addEventListener("change", (e) => {
       selectedMode = e.target.value;
+      renderChildrenList();
     });
   });
 
@@ -112,18 +113,23 @@ function renderChildrenList() {
     const record = findRecordById(dayData, child.id);
     const status = getStatusSymbol(record);
     const disabled = status === "●";
-    const label = `${String(child.no).padStart(2, "0")}　${child.name}`;
+    const canClear = hasRecordForMode(record, selectedMode);
 
     return `
       <div class="child-row">
         <div class="child-status">${status}</div>
         <div class="child-no">${escapeHtml(String(child.no))}</div>
         <button class="child-btn" ${disabled ? "disabled" : ""} onclick="openParentScreen('${escapeJs(child.id)}')">${escapeHtml(child.name)}</button>
+        ${canClear
+          ? `<button class="child-clear-btn" onclick="clearChildRecord('${escapeJs(child.id)}')">クリア</button>`
+          : `<div class="child-clear-spacer" aria-hidden="true"></div>`}
       </div>
     `;
   });
 
-  el.childrenList.innerHTML = rows.length > 0 ? rows.join("") : `<div class="child-row"><div class="child-status"></div><div class="child-no"></div><div>園児がいません</div></div>`;
+  el.childrenList.innerHTML = rows.length > 0
+    ? rows.join("")
+    : `<div class="child-row"><div class="child-status"></div><div class="child-no"></div><div>園児がいません</div><div class="child-clear-spacer" aria-hidden="true"></div></div>`;
 }
 
 function getChildrenByClass(classId) {
@@ -239,6 +245,35 @@ function normalizeRecord(record) {
 
 function findRecordById(dayData, id) {
   return Array.isArray(dayData.records) ? dayData.records.find((record) => record.id === id) || null : null;
+}
+
+function hasRecordForMode(record, mode) {
+  if (!record) return false;
+  return mode === "in" ? Boolean(record.clock_in) : Boolean(record.clock_out);
+}
+
+function clearChildRecord(childId) {
+  const child = childMaster.find((item) => item.id === childId);
+  if (!child) return;
+
+  const modeLabel = selectedMode === "in" ? "登園" : "降園";
+  if (!confirm(`${getDisplayName(child)} の${modeLabel}記録をクリアしますか？`)) return;
+
+  const todayKey = getDateKey(new Date());
+  const dayData = loadDayData(todayKey);
+  const record = findRecordById(dayData, child.id);
+  if (!record) return;
+
+  if (selectedMode === "in") {
+    record.clock_in = "";
+  } else {
+    record.clock_out = "";
+  }
+
+  dayData.records = (dayData.records || []).filter((item) => item.id !== child.id || item.clock_in || item.clock_out);
+  saveDayData(todayKey, dayData);
+  renderChildrenList();
+  alert(`${modeLabel}記録をクリアしました`);
 }
 
 function getStatusSymbol(record) {
@@ -424,3 +459,4 @@ function escapeHtml(value) {
 }
 function escapeJs(value) { return String(value ?? "").replace(/\\/g, "\\\\").replace(/'/g, "\\'"); }
 window.openParentScreen = openParentScreen;
+window.clearChildRecord = clearChildRecord;
