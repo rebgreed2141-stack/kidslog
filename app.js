@@ -4,6 +4,9 @@ let childMaster = [];
 let selectedClassId = "";
 let selectedMode = "in";
 let currentContext = null;
+let swRegistration = null;
+let currentVersionText = "";
+let latestVersionText = "";
 
 const el = {};
 
@@ -17,6 +20,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   renderClassSelect();
   renderChildrenList();
   setupAdminButtons();
+  await setupVersionUi();
 });
 
 function cacheElements() {
@@ -34,6 +38,9 @@ function cacheElements() {
   el.dialogMessage = document.getElementById("dialog-message");
   el.dialogOkBtn = document.getElementById("dialog-ok-btn");
   el.restoreFile = document.getElementById("restore-file");
+  el.currentVersion = document.getElementById("current-version");
+  el.latestVersion = document.getElementById("latest-version");
+  el.updateBtn = document.getElementById("update-btn");
 }
 
 function setupTabs() {
@@ -72,6 +79,7 @@ function setupEventHandlers() {
     currentContext = null;
     renderChildrenList();
   });
+  el.updateBtn.addEventListener("click", updateApp);
 }
 
 async function loadChildMaster() {
@@ -460,3 +468,116 @@ function escapeHtml(value) {
 function escapeJs(value) { return String(value ?? "").replace(/\\/g, "\\\\").replace(/'/g, "\\'"); }
 window.openParentScreen = openParentScreen;
 window.clearChildRecord = clearChildRecord;
+
+
+async function setupVersionUi() {
+  if (!("serviceWorker" in navigator)) {
+    el.currentVersion.textContent = "---";
+    el.latestVersion.textContent = "---";
+    el.updateBtn.disabled = true;
+    return;
+  }
+
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    window.location.reload();
+  });
+
+  swRegistration = await navigator.serviceWorker.ready;
+
+  if (swRegistration.installing) {
+    watchInstallingWorker(swRegistration.installing);
+  }
+
+  swRegistration.addEventListener("updatefound", () => {
+    if (swRegistration.installing) {
+      watchInstallingWorker(swRegistration.installing);
+    }
+  });
+
+  await refreshVersionInfo();
+
+  try {
+    await swRegistration.update();
+  } catch (error) {
+    console.error(error);
+  }
+
+  await refreshVersionInfo();
+}
+
+function watchInstallingWorker(worker) {
+  worker.addEventListener("statechange", async () => {
+    if (worker.state === "installed") {
+      await refreshVersionInfo();
+    }
+  });
+}
+
+async function refreshVersionInfo() {
+  currentVersionText = await getCurrentVersionFromInstalledApp();
+  latestVersionText = await getLatestVersionFromServer();
+
+  el.currentVersion.textContent = currentVersionText || "---";
+
+  if (latestVersionText && currentVersionText && latestVersionText !== currentVersionText) {
+    el.latestVersion.textContent = latestVersionText;
+  } else {
+    el.latestVersion.textContent = "最新です";
+  }
+
+  el.updateBtn.disabled = !Boolean(swRegistration && swRegistration.waiting && latestVersionText && currentVersionText && latestVersionText !== currentVersionText);
+}
+
+async function getCurrentVersionFromInstalledApp() {
+  const fromSw = await getVersionFromServiceWorker();
+  if (fromSw) return fromSw;
+
+  try {
+    const response = await fetch("./version.json");
+    const data = await response.json();
+    return normalizeVersionText(data.version);
+  } catch (error) {
+    console.error(error);
+    return "";
+  }
+}
+
+function getVersionFromServiceWorker() {
+  return new Promise((resolve) => {
+    if (!navigator.serviceWorker.controller) {
+      resolve("");
+      return;
+    }
+
+    const channel = new MessageChannel();
+    const timer = setTimeout(() => resolve(""), 3000);
+
+    channel.port1.onmessage = (event) => {
+      clearTimeout(timer);
+      const version = event.data && event.data.version ? normalizeVersionText(event.data.version) : "";
+      resolve(version);
+    };
+
+    navigator.serviceWorker.controller.postMessage({ type: "GET_CURRENT_VERSION" }, [channel.port2]);
+  });
+}
+
+async function getLatestVersionFromServer() {
+  try {
+    const response = await fetch(`./version.json?ts=${Date.now()}`, { cache: "no-store" });
+    const data = await response.json();
+    return normalizeVersionText(data.version);
+  } catch (error) {
+    console.error(error);
+    return "";
+  }
+}
+
+function normalizeVersionText(value) {
+  return String(value || "").trim();
+}
+
+function updateApp() {
+  if (!swRegistration || !swRegistration.waiting) return;
+  swRegistration.waiting.postMessage({ type: "SKIP_WAITING" });
+}
