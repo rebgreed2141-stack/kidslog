@@ -7,6 +7,7 @@ let currentContext = null;
 let swRegistration = null;
 let currentVersionText = "";
 let latestVersionText = "";
+const ACCEPTED_VERSION_KEY = "kidslog_accepted_version";
 
 const el = {};
 
@@ -478,88 +479,37 @@ async function setupVersionUi() {
     return;
   }
 
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
-    window.location.reload();
-  });
-
-  swRegistration = await navigator.serviceWorker.ready;
-
-  if (swRegistration.installing) {
-    watchInstallingWorker(swRegistration.installing);
-  }
-
-  swRegistration.addEventListener("updatefound", () => {
-    if (swRegistration.installing) {
-      watchInstallingWorker(swRegistration.installing);
-    }
-  });
-
-  await refreshVersionInfo();
-
-  try {
-    await swRegistration.update();
-  } catch (error) {
-    console.error(error);
-  }
-
-  await refreshVersionInfo();
-}
-
-function watchInstallingWorker(worker) {
-  worker.addEventListener("statechange", async () => {
-    if (worker.state === "installed") {
-      await refreshVersionInfo();
-    }
-  });
-}
-
-async function refreshVersionInfo() {
-  currentVersionText = await getCurrentVersionFromInstalledApp();
+  const acceptedVersion = await ensureAcceptedVersion();
+  currentVersionText = normalizeVersionText(acceptedVersion);
   latestVersionText = await getLatestVersionFromServer();
 
   el.currentVersion.textContent = currentVersionText || "---";
-
   if (latestVersionText && currentVersionText && latestVersionText !== currentVersionText) {
     el.latestVersion.textContent = latestVersionText;
+    el.updateBtn.disabled = false;
   } else {
     el.latestVersion.textContent = "最新です";
+    el.updateBtn.disabled = true;
   }
-
-  el.updateBtn.disabled = !Boolean(swRegistration && swRegistration.waiting && latestVersionText && currentVersionText && latestVersionText !== currentVersionText);
 }
 
-async function getCurrentVersionFromInstalledApp() {
-  const fromSw = await getVersionFromServiceWorker();
-  if (fromSw) return fromSw;
+async function ensureAcceptedVersion() {
+  let accepted = normalizeVersionText(localStorage.getItem(ACCEPTED_VERSION_KEY));
+  if (accepted) return accepted;
 
   try {
-    const response = await fetch("./version.json");
+    const response = await fetch(`./version.json?ts=${Date.now()}`, { cache: "no-store" });
     const data = await response.json();
-    return normalizeVersionText(data.version);
+    accepted = normalizeVersionText(data.version);
+    if (accepted) {
+      localStorage.setItem(ACCEPTED_VERSION_KEY, accepted);
+      return accepted;
+    }
   } catch (error) {
     console.error(error);
-    return "";
   }
-}
 
-function getVersionFromServiceWorker() {
-  return new Promise((resolve) => {
-    if (!navigator.serviceWorker.controller) {
-      resolve("");
-      return;
-    }
-
-    const channel = new MessageChannel();
-    const timer = setTimeout(() => resolve(""), 3000);
-
-    channel.port1.onmessage = (event) => {
-      clearTimeout(timer);
-      const version = event.data && event.data.version ? normalizeVersionText(event.data.version) : "";
-      resolve(version);
-    };
-
-    navigator.serviceWorker.controller.postMessage({ type: "GET_CURRENT_VERSION" }, [channel.port2]);
-  });
+  return "";
 }
 
 async function getLatestVersionFromServer() {
@@ -577,7 +527,41 @@ function normalizeVersionText(value) {
   return String(value || "").trim();
 }
 
-function updateApp() {
-  if (!swRegistration || !swRegistration.waiting) return;
-  swRegistration.waiting.postMessage({ type: "SKIP_WAITING" });
+async function updateApp() {
+  if (!latestVersionText || !currentVersionText || latestVersionText === currentVersionText) return;
+
+  try {
+    el.updateBtn.disabled = true;
+    localStorage.setItem(ACCEPTED_VERSION_KEY, latestVersionText);
+
+    const registration = await navigator.serviceWorker.register(`./sw.js?v=${encodeURIComponent(latestVersionText)}`);
+    swRegistration = registration;
+
+    await new Promise((resolve, reject) => {
+      if (registration.active) {
+        resolve();
+        return;
+      }
+
+      const worker = registration.installing || registration.waiting;
+      if (!worker) {
+        resolve();
+        return;
+      }
+
+      const timer = setTimeout(() => reject(new Error("timeout")), 15000);
+      worker.addEventListener("statechange", () => {
+        if (worker.state === "activated" || worker.state === "installed") {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+    });
+
+    window.location.reload();
+  } catch (error) {
+    console.error(error);
+    alert("更新に失敗しました");
+    el.updateBtn.disabled = false;
+  }
 }
