@@ -8,6 +8,19 @@ let swRegistration = null;
 let currentVersionText = "";
 let latestVersionText = "";
 const ACCEPTED_VERSION_KEY = "kidslog_accepted_version";
+const CACHE_NAME = "kidslog-cache";
+const UPDATE_ASSETS = [
+  "./",
+  "./index.html",
+  "./app.js",
+  "./styles.css",
+  "./child.json",
+  "./manifest.json",
+  "./version.json",
+  "./icon-192.png",
+  "./icon-512.png",
+  "./icon-1024.png"
+];
 
 const el = {};
 
@@ -471,6 +484,7 @@ window.openParentScreen = openParentScreen;
 window.clearChildRecord = clearChildRecord;
 
 
+
 async function setupVersionUi() {
   if (!("serviceWorker" in navigator)) {
     el.currentVersion.textContent = "---";
@@ -484,7 +498,8 @@ async function setupVersionUi() {
   latestVersionText = await getLatestVersionFromServer();
 
   el.currentVersion.textContent = currentVersionText || "---";
-  if (latestVersionText && currentVersionText && latestVersionText !== currentVersionText) {
+
+  if (compareVersions(latestVersionText, currentVersionText) > 0) {
     el.latestVersion.textContent = latestVersionText;
     el.updateBtn.disabled = false;
   } else {
@@ -494,22 +509,41 @@ async function setupVersionUi() {
 }
 
 async function ensureAcceptedVersion() {
-  let accepted = normalizeVersionText(localStorage.getItem(ACCEPTED_VERSION_KEY));
-  if (accepted) return accepted;
+  const saved = normalizeVersionText(localStorage.getItem(ACCEPTED_VERSION_KEY));
+  if (saved) return saved;
 
-  try {
-    const response = await fetch(`./version.json?ts=${Date.now()}`, { cache: "no-store" });
-    const data = await response.json();
-    accepted = normalizeVersionText(data.version);
-    if (accepted) {
-      localStorage.setItem(ACCEPTED_VERSION_KEY, accepted);
-      return accepted;
-    }
-  } catch (error) {
-    console.error(error);
+  const currentFromSw = await getCurrentVersionFromServiceWorker();
+  if (currentFromSw) {
+    localStorage.setItem(ACCEPTED_VERSION_KEY, currentFromSw);
+    return currentFromSw;
   }
 
   return "";
+}
+
+async function getCurrentVersionFromServiceWorker() {
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    swRegistration = registration;
+
+    if (!registration.active) return "";
+
+    const channel = new MessageChannel();
+    const result = await new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(""), 3000);
+      channel.port1.onmessage = (event) => {
+        clearTimeout(timer);
+        const version = normalizeVersionText(event.data && event.data.version);
+        resolve(version);
+      };
+      registration.active.postMessage({ type: "GET_CURRENT_VERSION" }, [channel.port2]);
+    });
+
+    return normalizeVersionText(result);
+  } catch (error) {
+    console.error(error);
+    return "";
+  }
 }
 
 async function getLatestVersionFromServer() {
@@ -527,37 +561,78 @@ function normalizeVersionText(value) {
   return String(value || "").trim();
 }
 
+function compareVersions(a, b) {
+  const left = normalizeVersionText(a).split(".").map((v) => Number(v) || 0);
+  const right = normalizeVersionText(b).split(".").map((v) => Number(v) || 0);
+  const maxLen = Math.max(left.length, right.length);
+  for (let i = 0; i < maxLen; i += 1) {
+    const diff = (left[i] || 0) - (right[i] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+async function refreshAppCache() {
+  if (!("caches" in window)) return;
+
+  const cache = await caches.open(CACHE_NAME);
+
+  for (const asset of UPDATE_ASSETS) {
+    const response = await fetch(`${asset}${asset.includes("?") ? "&" : "?"}ts=${Date.now()}`, { cache: "no-store" });
+    if (!response.ok) throw new Error(`cache refresh failed: ${asset}`);
+
+    const cacheKey = new Request(asset, { method: "GET" });
+    await cache.put(cacheKey, response.clone());
+  }
+}
+
+function waitForControllerChangeOnce() {
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const timer = setTimeout(() => {
+      if (done) return;
+      done = true;
+      reject(new Error("controllerchange timeout"));
+    }, 10000);
+
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve();
+    }, { once: true });
+  });
+}
+
 async function updateApp() {
-  if (!latestVersionText || !currentVersionText || latestVersionText === currentVersionText) return;
+  if (compareVersions(latestVersionText, currentVersionText) <= 0) return;
 
   try {
     el.updateBtn.disabled = true;
-    localStorage.setItem(ACCEPTED_VERSION_KEY, latestVersionText);
 
-    const registration = await navigator.serviceWorker.register(`./sw.js?v=${encodeURIComponent(latestVersionText)}`);
+    let registration = await navigator.serviceWorker.getRegistration();
+    if (!registration) {
+      registration = await navigator.serviceWorker.register("./sw.js");
+    }
     swRegistration = registration;
 
-    await new Promise((resolve, reject) => {
-      if (registration.active) {
-        resolve();
-        return;
-      }
+    await registration.update();
 
-      const worker = registration.installing || registration.waiting;
-      if (!worker) {
-        resolve();
-        return;
-      }
+    let reloadedByWaiting = false;
+    const waitingWorker = registration.waiting;
 
-      const timer = setTimeout(() => reject(new Error("timeout")), 15000);
-      worker.addEventListener("statechange", () => {
-        if (worker.state === "activated" || worker.state === "installed") {
-          clearTimeout(timer);
-          resolve();
-        }
-      });
-    });
+    if (waitingWorker) {
+      const controllerChangePromise = waitForControllerChangeOnce();
+      waitingWorker.postMessage({ type: "SKIP_WAITING" });
+      await controllerChangePromise;
+      localStorage.setItem(ACCEPTED_VERSION_KEY, latestVersionText);
+      reloadedByWaiting = true;
+      window.location.reload();
+      return;
+    }
 
+    await refreshAppCache();
+    localStorage.setItem(ACCEPTED_VERSION_KEY, latestVersionText);
     window.location.reload();
   } catch (error) {
     console.error(error);

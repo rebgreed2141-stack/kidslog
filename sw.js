@@ -1,4 +1,5 @@
 const CACHE_NAME = "kidslog-cache";
+const VERSION_CACHE_KEYS = ["./version.json", new URL("./version.json", self.location.href).href];
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -37,7 +38,11 @@ self.addEventListener("message", (event) => {
   if (event.data.type === "GET_CURRENT_VERSION") {
     event.waitUntil((async () => {
       const cache = await caches.open(CACHE_NAME);
-      const response = await cache.match("./version.json") || await cache.match(new URL("./version.json", self.location.href).href);
+      let response = null;
+      for (const key of VERSION_CACHE_KEYS) {
+        response = await cache.match(key);
+        if (response) break;
+      }
       let version = "";
       if (response) {
         try {
